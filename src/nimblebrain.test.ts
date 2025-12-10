@@ -320,10 +320,10 @@ describe('NimbleBrain', () => {
 
 describe('NimbleBrain.messages.stream', () => {
   let sdk: NimbleBrain;
-  let originalFetch: typeof global.fetch;
+  let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    originalFetch = global.fetch;
+    originalFetch = globalThis.fetch;
     sdk = new NimbleBrain({
       apiKey: 'test-api-key',
       baseUrl: 'https://api.test.com',
@@ -331,7 +331,7 @@ describe('NimbleBrain.messages.stream', () => {
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
   });
 
   it('should stream SSE events', async () => {
@@ -349,7 +349,7 @@ describe('NimbleBrain.messages.stream', () => {
       },
     });
 
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       body: mockStream,
     });
@@ -365,7 +365,7 @@ describe('NimbleBrain.messages.stream', () => {
     expect(events[2]).toEqual({ type: 'content', data: { text: ' world' } });
     expect(events[3]).toEqual({ type: 'done', data: {} });
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       'https://api.test.com/v1/agents/agent-1/conversations/conv-1/messages',
       expect.objectContaining({
         method: 'POST',
@@ -389,7 +389,7 @@ describe('NimbleBrain.messages.stream', () => {
       },
     });
 
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       body: mockStream,
     });
@@ -405,7 +405,7 @@ describe('NimbleBrain.messages.stream', () => {
   });
 
   it('should throw on non-ok response', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
       text: () => Promise.resolve('Unauthorized'),
@@ -419,7 +419,7 @@ describe('NimbleBrain.messages.stream', () => {
   });
 
   it('should throw when no response body', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       body: null,
     });
@@ -445,7 +445,7 @@ describe('NimbleBrain.messages.stream', () => {
       },
     });
 
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       body: mockStream,
     });
