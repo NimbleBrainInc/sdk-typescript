@@ -27,6 +27,8 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run clean && npm run build",
     "dev": "npm run build"
   },
@@ -60,6 +62,7 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.88.1",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.15"
   }
 }
