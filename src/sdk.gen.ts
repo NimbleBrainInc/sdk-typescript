@@ -80,7 +80,21 @@ export const getV1AgentsByAgentIdConversationsByConversationIdMessages = <ThrowO
 /**
  * Send message
  *
- * Send a message to a conversation with an agent. Agent response will be generated asynchronously.
+ * Send a message to a conversation with an agent.
+ *
+ * **Response Modes:**
+ * - **Streaming** (Accept: text/event-stream OR stream: true): Returns SSE stream with real-time events
+ * - **Synchronous** (default): Blocks until response complete, returns full message
+ * - **Async** (async: true): Returns immediately with executionId, poll /v1/executions/:id for result
+ *
+ * **SSE Events (streaming mode):**
+ * - `message.start` - Agent started responding
+ * - `content` - Content chunk (text field)
+ * - `tool.start` - Tool execution started
+ * - `tool.complete` - Tool execution finished
+ * - `message.complete` - Full message with content
+ * - `error` - Error occurred
+ * - `done` - Stream complete
  */
 export const postV1AgentsByAgentIdConversationsByConversationIdMessages = <ThrowOnError extends boolean = false>(options: Options<PostV1AgentsByAgentIdConversationsByConversationIdMessagesData, ThrowOnError>) => (options.client ?? client).post<PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

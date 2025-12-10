@@ -27,8 +27,8 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run clean && npm run generate && npm run build",
-    "dev": "npm run generate && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "dev": "npm run build"
   },
   "keywords": [
     "nimblebrain",

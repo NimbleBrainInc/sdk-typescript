@@ -172,8 +172,19 @@ export type GetV1AgentsByAgentIdConversationsByConversationIdMessagesResponse = 
 
 export type PostV1AgentsByAgentIdConversationsByConversationIdMessagesData = {
     body: {
+        /**
+         * Message content
+         */
         content: string;
         role?: 'user' | 'assistant';
+        /**
+         * Enable streaming mode (alternative to Accept header)
+         */
+        stream?: boolean;
+        /**
+         * Enable async mode (return immediately, poll for result)
+         */
+        async?: boolean;
     };
     path: {
         /**
@@ -191,12 +202,21 @@ export type PostV1AgentsByAgentIdConversationsByConversationIdMessagesData = {
 
 export type PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponses = {
     /**
-     * Message queued for processing
+     * Synchronous response - full message
+     */
+    200: {
+        messageId?: string;
+        content?: string;
+        role?: string;
+        executionId?: string;
+        tokensUsed?: number;
+    };
+    /**
+     * Async mode - message queued
      */
     202: {
         messageId?: string;
-        content?: string;
-        executionRequestId?: string;
+        executionId?: string;
         status?: string;
         message?: string;
     };
