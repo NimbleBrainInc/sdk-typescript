@@ -3,6 +3,7 @@
 Official TypeScript SDK for the [NimbleBrain Studio API](https://www.nimblebrain.ai).
 
 ![npm version](https://img.shields.io/npm/v/@nimblebrain/sdk)
+![CI](https://github.com/NimbleBrainInc/sdk-typescript/actions/workflows/ci.yml/badge.svg)
 ![GitHub License](https://img.shields.io/github/license/NimbleBrainInc/sdk-typescript)
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&logoColor=white)](https://www.nimblebrain.ai/discord?utm_source=github&utm_medium=readme&utm_campaign=sdk-typescript&utm_content=header-badge)
 
