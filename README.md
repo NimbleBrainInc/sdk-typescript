@@ -14,6 +14,10 @@ Official TypeScript SDK for the [NimbleBrain Studio API](https://www.nimblebrain
 - **TypeScript first** - Full type definitions for all API responses
 - **Auto-generated types** - OpenAPI-generated types ensure API compatibility
 
+## Requirements
+
+- Node.js >= 18.0.0
+
 ## Installation
 
 ```bash
@@ -195,6 +199,9 @@ npm run build
 
 # Type check
 npm run typecheck
+
+# Run tests
+npm run test
 ```
 
 ## Publishing
