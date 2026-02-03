@@ -4,50 +4,313 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:3000' | (string & {});
 };
 
-export type GetV1AgentsData = {
+export type ActionCard = ({
+    type: 'link';
+} & LinkCard) | ({
+    type: 'document';
+} & DocumentCard) | ({
+    type: 'code';
+} & CodeCard) | ({
+    type: 'meeting';
+} & MeetingCard) | ({
+    type: 'contact';
+} & ContactCard) | ({
+    type: 'datetime';
+} & DateTimeCard) | ({
+    type: 'table';
+} & TableCard) | ({
+    type: 'connection';
+} & ConnectionCard);
+
+/**
+ * Hyperlink with label and optional description
+ */
+export type LinkCard = {
+    type: 'link';
+    label: string;
+    url: string;
+    description?: string;
+};
+
+/**
+ * File/document reference with metadata
+ */
+export type DocumentCard = {
+    type: 'document';
+    label: string;
+    url: string;
+    filename?: string;
+    mimeType?: string;
+    /**
+     * File size in bytes
+     */
+    size?: number;
+};
+
+/**
+ * Code snippet or value with copy functionality
+ */
+export type CodeCard = {
+    type: 'code';
+    label: string;
+    value: string;
+    copyable?: boolean;
+    /**
+     * If true, value should be masked
+     */
+    sensitive?: boolean;
+};
+
+/**
+ * Meeting/video call with join information
+ */
+export type MeetingCard = {
+    type: 'meeting';
+    /**
+     * e.g., "Zoom Meeting"
+     */
+    label: string;
+    joinUrl: string;
+    meetingId?: string;
+    passcode?: string;
+    dialIn?: string;
+    startTime?: string;
+};
+
+/**
+ * Person/contact information
+ */
+export type ContactCard = {
+    type: 'contact';
+    label: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    profileUrl?: string;
+};
+
+/**
+ * Date/time information with optional duration
+ */
+export type DateTimeCard = {
+    type: 'datetime';
+    label: string;
+    iso: string;
+    timezone?: string;
+    /**
+     * Duration in minutes
+     */
+    duration?: number;
+};
+
+/**
+ * Tabular data display
+ */
+export type TableCard = {
+    type: 'table';
+    label: string;
+    headers: Array<string>;
+    rows: Array<Array<string>>;
+    truncated?: boolean;
+    totalRows?: number;
+};
+
+/**
+ * MCP connection requiring user action (OAuth or API key configuration)
+ */
+export type ConnectionCard = {
+    type: 'connection';
+    connectionId: string;
+    connectionName: string;
+    status: 'pending_auth' | 'configuring' | 'active' | 'error' | 'disconnected';
+    authType: 'oauth2' | 'api_key' | 'none';
+    /**
+     * Required fields for API key auth
+     */
+    requiredSecrets?: Array<string>;
+    icon?: string;
+    description?: string;
+    /**
+     * OAuth token expired, needs re-authorization
+     */
+    needsReauth?: boolean;
+    /**
+     * OAuth initiate URL. Present when authType is oauth2 and authorization is needed.
+     */
+    authUrl?: string;
+};
+
+/**
+ * Initial metadata for the response message. Event type: message.meta
+ */
+export type MessageMetaEvent = {
+    conversationId: string;
+    messageId: string;
+    participantId: string;
+    participantName: string;
+};
+
+/**
+ * Indicates Nira is processing. Event type: message.thinking
+ */
+export type MessageThinkingEvent = {
+    status: 'thinking';
+};
+
+/**
+ * Streaming text content chunk. Event type: message.content
+ */
+export type MessageContentEvent = {
+    /**
+     * Text chunk to append
+     */
+    content: string;
+    messageId: string;
+};
+
+/**
+ * Tool execution status update. Event type: message.tool
+ */
+export type MessageToolEvent = {
+    /**
+     * Internal tool identifier
+     */
+    toolName: string;
+    /**
+     * Human-readable tool name
+     */
+    displayName: string;
+    status: 'started' | 'completed';
+    /**
+     * Present when status is completed
+     */
+    success?: boolean;
+};
+
+/**
+ * Rich interactive cards (connections, links, meetings, etc.). Event type: message.actionCards
+ */
+export type MessageActionCardsEvent = {
+    actionCards: Array<ActionCard>;
+};
+
+/**
+ * File attachments. Event type: message.attachments
+ */
+export type MessageAttachmentsEvent = {
+    attachments: Array<{
+        name: string;
+        url: string;
+        mimeType: string;
+    }>;
+};
+
+/**
+ * Client-side actions to execute. Event type: message.actions
+ */
+export type MessageActionsEvent = {
+    actions: Array<{
+        type: string;
+        payload: {
+            [key: string]: unknown;
+        };
+    }>;
+};
+
+/**
+ * Stream completion indicator. Event type: message.done
+ */
+export type MessageDoneEvent = {
+    messagesCount: number;
+};
+
+/**
+ * Error during message processing. Event type: error
+ */
+export type ErrorEvent = {
+    error: string;
+    code?: 'INSUFFICIENT_CREDITS' | 'NOT_FOUND' | 'VALIDATION_ERROR' | 'INTERNAL_ERROR';
+    recoverable: boolean;
+};
+
+export type GetV1MeData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/v1/agents';
+    url: '/v1/me';
 };
 
-export type GetV1AgentsErrors = {
+export type GetV1MeErrors = {
     /**
-     * Unauthorized - Invalid or missing API key
+     * JWT authentication required
      */
     401: {
         error?: string;
         message?: string;
     };
+};
+
+export type GetV1MeError = GetV1MeErrors[keyof GetV1MeErrors];
+
+export type GetV1MeResponses = {
     /**
-     * Forbidden - Insufficient permissions
+     * Current user profile
      */
-    403: {
+    200: {
+        user?: {
+            id?: string;
+            email?: string;
+            firstName?: string;
+            lastName?: string;
+            avatarUrl?: string;
+        };
+        organization?: {
+            id?: string;
+            name?: string;
+        };
+        workspaces?: Array<{
+            id?: string;
+            name?: string;
+            slug?: string;
+        }>;
+    };
+};
+
+export type GetV1MeResponse = GetV1MeResponses[keyof GetV1MeResponses];
+
+export type GetV1WorkspacesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/v1/workspaces';
+};
+
+export type GetV1WorkspacesErrors = {
+    /**
+     * JWT authentication required
+     */
+    401: {
         error?: string;
         message?: string;
     };
 };
 
-export type GetV1AgentsError = GetV1AgentsErrors[keyof GetV1AgentsErrors];
+export type GetV1WorkspacesError = GetV1WorkspacesErrors[keyof GetV1WorkspacesErrors];
 
-export type GetV1AgentsResponses = {
+export type GetV1WorkspacesResponses = {
     /**
-     * List of agents
+     * List of workspaces
      */
     200: {
-        agents?: Array<{
+        workspaces?: Array<{
             id?: string;
             name?: string;
-            type?: 'custom' | 'nira' | 'system';
-            description?: string;
-            createdAt?: string;
-            updatedAt?: string;
+            slug?: string;
         }>;
-        total?: number;
     };
 };
 
-export type GetV1AgentsResponse = GetV1AgentsResponses[keyof GetV1AgentsResponses];
+export type GetV1WorkspacesResponse = GetV1WorkspacesResponses[keyof GetV1WorkspacesResponses];
 
 export type GetV1PlaybooksData = {
     body?: never;
@@ -73,156 +336,6 @@ export type GetV1PlaybooksResponses = {
 };
 
 export type GetV1PlaybooksResponse = GetV1PlaybooksResponses[keyof GetV1PlaybooksResponses];
-
-export type PostV1AgentsByAgentIdConversationsData = {
-    body?: {
-        title?: string;
-        context?: 'sidebar' | 'dedicated';
-    };
-    path: {
-        agentId: string;
-    };
-    query?: never;
-    url: '/v1/agents/{agentId}/conversations';
-};
-
-export type PostV1AgentsByAgentIdConversationsResponses = {
-    /**
-     * Conversation created
-     */
-    201: {
-        id?: string;
-        title?: string;
-        context?: string;
-        status?: string;
-        createdAt?: string;
-    };
-};
-
-export type PostV1AgentsByAgentIdConversationsResponse = PostV1AgentsByAgentIdConversationsResponses[keyof PostV1AgentsByAgentIdConversationsResponses];
-
-export type GetV1AgentsByAgentIdConversationsByConversationIdData = {
-    body?: never;
-    path: {
-        /**
-         * Agent ID
-         */
-        agentId: string;
-        /**
-         * Conversation ID
-         */
-        conversationId: string;
-    };
-    query?: never;
-    url: '/v1/agents/{agentId}/conversations/{conversationId}';
-};
-
-export type GetV1AgentsByAgentIdConversationsByConversationIdResponses = {
-    /**
-     * Conversation details
-     */
-    200: {
-        id?: string;
-        title?: string;
-        context?: string;
-        status?: string;
-        messageCount?: number;
-        lastMessageAt?: string;
-        createdAt?: string;
-    };
-};
-
-export type GetV1AgentsByAgentIdConversationsByConversationIdResponse = GetV1AgentsByAgentIdConversationsByConversationIdResponses[keyof GetV1AgentsByAgentIdConversationsByConversationIdResponses];
-
-export type GetV1AgentsByAgentIdConversationsByConversationIdMessagesData = {
-    body?: never;
-    path: {
-        /**
-         * Agent ID
-         */
-        agentId: string;
-        /**
-         * Conversation ID
-         */
-        conversationId: string;
-    };
-    query?: {
-        limit?: number;
-        offset?: number;
-    };
-    url: '/v1/agents/{agentId}/conversations/{conversationId}/messages';
-};
-
-export type GetV1AgentsByAgentIdConversationsByConversationIdMessagesResponses = {
-    /**
-     * List of messages
-     */
-    200: {
-        messages?: Array<{
-            id?: string;
-            role?: 'user' | 'assistant' | 'system';
-            content?: string;
-            createdAt?: string;
-        }>;
-        total?: number;
-    };
-};
-
-export type GetV1AgentsByAgentIdConversationsByConversationIdMessagesResponse = GetV1AgentsByAgentIdConversationsByConversationIdMessagesResponses[keyof GetV1AgentsByAgentIdConversationsByConversationIdMessagesResponses];
-
-export type PostV1AgentsByAgentIdConversationsByConversationIdMessagesData = {
-    body: {
-        /**
-         * Message content
-         */
-        content: string;
-        role?: 'user' | 'assistant';
-        /**
-         * Enable streaming mode (alternative to Accept header)
-         */
-        stream?: boolean;
-        /**
-         * Enable async mode (return immediately, poll for result)
-         */
-        async?: boolean;
-    };
-    path: {
-        /**
-         * Agent ID
-         */
-        agentId: string;
-        /**
-         * Conversation ID
-         */
-        conversationId: string;
-    };
-    query?: never;
-    url: '/v1/agents/{agentId}/conversations/{conversationId}/messages';
-};
-
-export type PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponses = {
-    /**
-     * Synchronous response - full message
-     */
-    200: {
-        messageId?: string;
-        content?: string;
-        role?: string;
-        executionId?: string;
-        tokensUsed?: number;
-    };
-    /**
-     * Async mode - message queued
-     */
-    202: {
-        messageId?: string;
-        executionId?: string;
-        status?: string;
-        message?: string;
-    };
-};
-
-export type PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponse = PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponses[keyof PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponses];
 
 export type PostV1PlaybooksByPlaybookIdExecuteData = {
     body?: {
@@ -316,3 +429,151 @@ export type GetV1ExecutionsByIdResponses = {
 };
 
 export type GetV1ExecutionsByIdResponse = GetV1ExecutionsByIdResponses[keyof GetV1ExecutionsByIdResponses];
+
+export type PostV1NiraConversationsData = {
+    body?: {
+        /**
+         * Optional conversation title
+         */
+        title?: string;
+        /**
+         * Personalization context for this conversation
+         */
+        context?: {
+            /**
+             * End user information (your user, not a NimbleBrain user)
+             */
+            endUser?: {
+                /**
+                 * Display name for personalized addressing
+                 */
+                name?: string;
+                /**
+                 * Email (for context, not authentication)
+                 */
+                email?: string;
+                /**
+                 * Your user ID (for correlation)
+                 */
+                externalId?: string;
+            };
+            /**
+             * Preferences for this conversation
+             */
+            preferences?: {
+                /**
+                 * IANA timezone (e.g., "America/New_York")
+                 */
+                timezone?: string;
+                /**
+                 * Response verbosity level
+                 */
+                verbosity?: 'concise' | 'balanced' | 'detailed';
+                /**
+                 * Locale (e.g., "en-US")
+                 */
+                locale?: string;
+            };
+            /**
+             * Custom instructions (future use)
+             */
+            instructions?: string;
+        };
+    };
+    path?: never;
+    query?: never;
+    url: '/v1/nira/conversations';
+};
+
+export type PostV1NiraConversationsResponses = {
+    /**
+     * Conversation created
+     */
+    201: {
+        id?: string;
+        title?: string;
+        messageCount?: number;
+        createdAt?: string;
+        updatedAt?: string;
+    };
+};
+
+export type PostV1NiraConversationsResponse = PostV1NiraConversationsResponses[keyof PostV1NiraConversationsResponses];
+
+export type GetV1NiraConversationsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/v1/nira/conversations/{id}';
+};
+
+export type GetV1NiraConversationsByIdResponses = {
+    /**
+     * Conversation details
+     */
+    200: {
+        id?: string;
+        title?: string;
+        messageCount?: number;
+        createdAt?: string;
+        updatedAt?: string;
+    };
+};
+
+export type GetV1NiraConversationsByIdResponse = GetV1NiraConversationsByIdResponses[keyof GetV1NiraConversationsByIdResponses];
+
+export type GetV1NiraConversationsByIdMessagesData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
+    url: '/v1/nira/conversations/{id}/messages';
+};
+
+export type GetV1NiraConversationsByIdMessagesResponses = {
+    /**
+     * List of messages
+     */
+    200: {
+        messages?: Array<{
+            id?: string;
+            role?: 'user' | 'assistant';
+            content?: string;
+            createdAt?: string;
+        }>;
+        total?: number;
+        limit?: number;
+        offset?: number;
+    };
+};
+
+export type GetV1NiraConversationsByIdMessagesResponse = GetV1NiraConversationsByIdMessagesResponses[keyof GetV1NiraConversationsByIdMessagesResponses];
+
+export type PostV1NiraConversationsByIdMessagesData = {
+    body: {
+        /**
+         * Message content to send to Nira
+         */
+        content: string;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/v1/nira/conversations/{id}/messages';
+};
+
+export type PostV1NiraConversationsByIdMessagesResponses = {
+    /**
+     * SSE event format: "event: {type}\ndata: {json}\n\n"
+     */
+    200: string;
+};
+
+export type PostV1NiraConversationsByIdMessagesResponse = PostV1NiraConversationsByIdMessagesResponses[keyof PostV1NiraConversationsByIdMessagesResponses];

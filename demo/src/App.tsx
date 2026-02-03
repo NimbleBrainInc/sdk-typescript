@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Streamdown } from 'streamdown';
 import { NimbleBrain } from '@nimblebrain/sdk';
-import type { Agent, Playbook, Conversation } from '@nimblebrain/sdk';
+import type { Playbook, Conversation, ActionCard } from '@nimblebrain/sdk';
 
 // Extended message type for UI state
 interface UIMessage {
@@ -10,43 +10,49 @@ interface UIMessage {
   content: string;
   isStreaming?: boolean;
   toolActivity?: string;
+  actionCards?: ActionCard[];
 }
 
 function App() {
-  // Connection state
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('nb_api_key') || '');
-  const [apiBase, setApiBase] = useState(() => localStorage.getItem('nb_api_base') || 'https://api.nimblebrain.ai');
+  // Connection state - initialize from env vars if available
+  const [apiKey, setApiKey] = useState(import.meta.env.VITE_API_KEY || '');
+  const [apiBase, setApiBase] = useState(import.meta.env.VITE_API_BASE || 'https://api.nimblebrain.ai');
   const [isConnected, setIsConnected] = useState(false);
   const [sdk, setSdk] = useState<NimbleBrain | null>(null);
 
   // Data state
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
-  const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [currentPlaybook, setCurrentPlaybook] = useState<Playbook | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<UIMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
 
   // UI state
-  const [activeTab, setActiveTab] = useState<'agents' | 'playbooks'>('agents');
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dark-mode') === 'true');
+  const [activeTab, setActiveTab] = useState<'chat' | 'playbooks'>('chat');
+  const [darkMode, setDarkMode] = useState(false);
   const [input, setInput] = useState('');
   const [executionResult, setExecutionResult] = useState<{ status: string; result: string } | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Dark mode effect
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem('dark-mode', String(darkMode));
   }, [darkMode]);
 
   // Auto-scroll messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Auto-connect if API key is provided via env var
+  useEffect(() => {
+    if (import.meta.env.VITE_API_KEY && !isConnected) {
+      connect(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Connect to API using SDK
   const connect = useCallback(async (silent = false) => {
@@ -55,18 +61,21 @@ function App() {
     const client = new NimbleBrain({ apiKey, baseUrl: apiBase });
 
     try {
-      const [agentList, playbookList] = await Promise.all([
-        client.agents.list(),
-        client.playbooks.list(),
-      ]);
+      // Fetch playbooks (optional, may not be available for all users)
+      let playbookList: Playbook[] = [];
+      try {
+        playbookList = await client.playbooks.list();
+      } catch {
+        // Playbooks API may not be available, continue without them
+      }
 
-      setAgents(agentList);
+      // Create a conversation with Nira
+      const conv = await client.nira.createConversation('SDK Demo Chat');
+
       setPlaybooks(playbookList);
+      setConversation(conv);
       setSdk(client);
       setIsConnected(true);
-
-      localStorage.setItem('nb_api_key', apiKey);
-      localStorage.setItem('nb_api_base', apiBase);
     } catch (error) {
       if (!silent) {
         alert(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -74,52 +83,36 @@ function App() {
     }
   }, [apiKey, apiBase]);
 
-  // Auto-connect on mount
-  useEffect(() => {
-    if (apiKey) {
-      connect(true);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const disconnect = () => {
     setIsConnected(false);
     setSdk(null);
-    setAgents([]);
     setPlaybooks([]);
-    setCurrentAgent(null);
     setCurrentPlaybook(null);
     setConversation(null);
     setMessages([]);
-    localStorage.removeItem('nb_api_key');
   };
 
-  // Select agent and create conversation
-  const selectAgent = async (agent: Agent) => {
-    if (!sdk) return;
+  const selectPlaybook = (playbook: Playbook) => {
+    setCurrentPlaybook(playbook);
+    setExecutionResult(null);
+  };
 
-    setCurrentAgent(agent);
+  const startNewChat = async () => {
+    if (!sdk) return;
     setCurrentPlaybook(null);
     setMessages([]);
-    setConversation(null);
-
     try {
-      const conv = await sdk.conversations.create(agent.id, 'SDK Demo Chat');
+      const conv = await sdk.nira.createConversation('SDK Demo Chat');
       setConversation(conv);
     } catch (error) {
       setMessages([{ id: 'error', role: 'system', content: `Failed to create conversation: ${error instanceof Error ? error.message : 'Unknown error'}` }]);
     }
   };
 
-  const selectPlaybook = (playbook: Playbook) => {
-    setCurrentPlaybook(playbook);
-    setCurrentAgent(null);
-    setExecutionResult(null);
-  };
-
   // Send message with streaming using SDK
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !sdk || !currentAgent || !conversation || isStreaming) return;
+    if (!input.trim() || !sdk || !conversation || isStreaming) return;
 
     const userContent = input.trim();
     setInput('');
@@ -142,37 +135,90 @@ function App() {
     }]);
 
     setIsStreaming(true);
+    let toolJustCompleted = false;
 
     try {
-      // Use SDK's streaming method
-      for await (const event of sdk.messages.stream(currentAgent.id, conversation.id, userContent)) {
+      // Use SDK's streaming method with Nira API
+      for await (const event of sdk.nira.stream(conversation.id, userContent)) {
+        console.log('SSE event:', event.type, event.data);
         switch (event.type) {
-          case 'content':
+          case 'message.content': {
+            const newContent = event.data.content as string;
+            console.log('Content chunk:', JSON.stringify(newContent), 'toolJustCompleted:', toolJustCompleted);
+            setMessages(prev => prev.map(m => {
+              if (m.id !== assistantId) return m;
+
+              let separator = '';
+              const existingContent = m.content.trim();
+
+              if (toolJustCompleted && existingContent) {
+                // Tool completed - add paragraph break
+                separator = '\n\n';
+                console.log('Adding paragraph break after tool completion');
+              } else if (existingContent && newContent) {
+                // Check for missing space at sentence boundary
+                // Pattern: existing ends with sentence-ending punctuation, new starts with uppercase
+                const endsWithPunctuation = /[.!?]$/.test(existingContent);
+                const startsWithUppercase = /^[A-Z]/.test(newContent);
+                if (endsWithPunctuation && startsWithUppercase) {
+                  separator = ' ';
+                  console.log('Adding space at sentence boundary');
+                }
+              }
+
+              return { ...m, content: m.content + separator + newContent };
+            }));
+            toolJustCompleted = false;
+            break;
+          }
+
+          case 'message.tool': {
+            const status = (event.data as Record<string, unknown>).status as string | undefined;
+            const toolName = (event.data.displayName as string) || (event.data.toolName as string) || 'tool';
+            console.log('Tool event:', { status, toolName, data: event.data });
+
+            // In-progress statuses - show tool activity indicator
+            const inProgressStatuses = ['running', 'started', 'pending', 'in_progress'];
+            // Completion statuses - mark for paragraph break
+            const completedStatuses = ['completed', 'done', 'success', 'finished', 'complete'];
+
+            if (status && inProgressStatuses.includes(status)) {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, toolActivity: toolName }
+                  : m
+              ));
+            } else if (status && completedStatuses.includes(status)) {
+              // Tool completed - mark so we add a break before next content
+              toolJustCompleted = true;
+              console.log('Tool completed with status:', status, '- will add paragraph break before next content');
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, toolActivity: undefined }
+                  : m
+              ));
+            } else {
+              // Unknown status - log it but don't set toolJustCompleted
+              console.log('Unknown tool status:', status, '- not setting paragraph break');
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, toolActivity: undefined }
+                  : m
+              ));
+            }
+            break;
+          }
+
+          case 'message.actionCards':
+            console.log('Action cards received:', JSON.stringify(event.data.actionCards, null, 2));
             setMessages(prev => prev.map(m =>
               m.id === assistantId
-                ? { ...m, content: m.content + (event.data.text as string) }
+                ? { ...m, actionCards: event.data.actionCards as ActionCard[] }
                 : m
             ));
             break;
 
-          case 'tool.start':
-            setMessages(prev => prev.map(m =>
-              m.id === assistantId
-                ? { ...m, toolActivity: (event.data.display as string) || (event.data.tool as string) }
-                : m
-            ));
-            break;
-
-          case 'tool.complete':
-            setMessages(prev => prev.map(m =>
-              m.id === assistantId
-                ? { ...m, toolActivity: undefined }
-                : m
-            ));
-            break;
-
-          case 'message.complete':
-          case 'done':
+          case 'message.done':
             setMessages(prev => prev.map(m =>
               m.id === assistantId
                 ? { ...m, isStreaming: false, toolActivity: undefined }
@@ -197,6 +243,8 @@ function App() {
       ));
     } finally {
       setIsStreaming(false);
+      // Return focus to input
+      inputRef.current?.focus();
     }
   };
 
@@ -330,10 +378,10 @@ function App() {
             {/* Tabs */}
             <div className="flex border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <button
-                onClick={() => setActiveTab('agents')}
-                className={`flex-1 px-4 py-3 text-sm font-medium ${activeTab === 'agents' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-500 dark:text-gray-400'}`}
+                onClick={() => { setActiveTab('chat'); setCurrentPlaybook(null); }}
+                className={`flex-1 px-4 py-3 text-sm font-medium ${activeTab === 'chat' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-gray-500 dark:text-gray-400'}`}
               >
-                Agents
+                Chat with Nira
               </button>
               <button
                 onClick={() => setActiveTab('playbooks')}
@@ -345,21 +393,22 @@ function App() {
 
             {/* List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
-              {activeTab === 'agents' ? (
-                agents.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">No agents found</div>
-                ) : (
-                  agents.map((agent) => (
-                    <button
-                      key={agent.id}
-                      onClick={() => selectAgent(agent)}
-                      className={`w-full text-left p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition ${currentAgent?.id === agent.id ? 'bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800' : ''}`}
-                    >
-                      <div className="font-medium text-gray-900 dark:text-white">{agent.name}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{agent.description || 'No description'}</div>
-                    </button>
-                  ))
-                )
+              {activeTab === 'chat' ? (
+                <div className="space-y-3">
+                  <button
+                    onClick={startNewChat}
+                    className="w-full text-left p-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 hover:bg-brand-100 dark:hover:bg-brand-900/30 transition"
+                  >
+                    <div className="font-medium text-brand-700 dark:text-brand-300">+ New Conversation</div>
+                    <div className="text-sm text-brand-600 dark:text-brand-400">Start a fresh chat with Nira</div>
+                  </button>
+                  {conversation && (
+                    <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-700">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current conversation</div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300 font-mono truncate">{conversation.id}</div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 playbooks.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">No playbooks found</div>
@@ -388,28 +437,13 @@ function App() {
 
           {/* Content area */}
           <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900 min-h-0 overflow-hidden">
-            {/* Empty state */}
-            {!currentAgent && !currentPlaybook && (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">Select an agent or playbook</h3>
-                  <p className="text-gray-500 dark:text-gray-400 mt-1">Choose from the sidebar to get started</p>
-                </div>
-              </div>
-            )}
-
-            {/* Chat interface */}
-            {currentAgent && (
+            {/* Chat interface (shown by default when conversation exists) */}
+            {activeTab === 'chat' && !currentPlaybook && (
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {/* Header */}
                 <div className="flex-shrink-0 px-6 py-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                  <h2 className="font-semibold text-gray-900 dark:text-white">{currentAgent.name}</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{currentAgent.description || 'Type a message to start chatting'}</p>
+                  <h2 className="font-semibold text-gray-900 dark:text-white">Chat with Nira</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Your AI assistant powered by NimbleBrain</p>
                 </div>
 
                 {/* Messages */}
@@ -438,13 +472,65 @@ function App() {
                             <Streamdown isAnimating={msg.isStreaming}>
                               {msg.content}
                             </Streamdown>
-                          ) : (
+                          ) : !msg.actionCards?.length ? (
                             <div className="typing-indicator flex gap-1">
                               <span className="w-2 h-2 bg-gray-400 rounded-full" />
                               <span className="w-2 h-2 bg-gray-400 rounded-full" />
                               <span className="w-2 h-2 bg-gray-400 rounded-full" />
                             </div>
-                          )}
+                          ) : null}
+                          {msg.actionCards?.map((card, idx) => (
+                            <div key={idx} className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                              {card.type === 'connection' ? (
+                                <>
+                                  <div className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+                                    {card.connectionName} needs authorization
+                                  </div>
+                                  {card.authUrl ? (
+                                    <a
+                                      href={card.authUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                      </svg>
+                                      Connect {card.connectionName}
+                                    </a>
+                                  ) : (
+                                    <div className="text-xs text-amber-600 dark:text-amber-400">
+                                      {card.authType === 'oauth2' ? 'OAuth authorization required' :
+                                       card.authType === 'api_key' ? 'API key configuration required' :
+                                       'Connection setup required'}
+                                      {' - '}Please configure in NimbleBrain Studio
+                                    </div>
+                                  )}
+                                </>
+                              ) : card.type === 'link' ? (
+                                <>
+                                  <div className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
+                                    {card.label}
+                                  </div>
+                                  <a
+                                    href={card.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                    Open Link
+                                  </a>
+                                </>
+                              ) : (
+                                <div className="text-sm text-amber-800 dark:text-amber-200">
+                                  Action card: {card.type}
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       ) : (
                         <div className="text-center text-sm text-gray-500 dark:text-gray-400">
@@ -460,6 +546,7 @@ function App() {
                 <div className="flex-shrink-0 p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
                   <form onSubmit={sendMessage} className="flex gap-3">
                     <input
+                      ref={inputRef}
                       type="text"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}

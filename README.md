@@ -9,8 +9,8 @@ Official TypeScript SDK for the [NimbleBrain Studio API](https://www.nimblebrain
 
 ## Features
 
-- **High-level API** - Clean, intuitive interface for agents, playbooks, and conversations
-- **Streaming support** - Real-time SSE streaming for agent responses with typewriter effect
+- **High-level API** - Clean, intuitive interface for Nira conversations and playbooks
+- **Streaming support** - Real-time SSE streaming with typewriter effect
 - **TypeScript first** - Full type definitions for all API responses
 - **Auto-generated types** - OpenAPI-generated types ensure API compatibility
 
@@ -31,17 +31,15 @@ import { NimbleBrain } from '@nimblebrain/sdk';
 
 const nb = new NimbleBrain({ apiKey: 'nb_live_...' });
 
-// List agents in your workspace
-const agents = await nb.agents.list();
-console.log('Available agents:', agents);
-
-// Create a conversation and chat with an agent
-const conversation = await nb.conversations.create(agents[0].id);
+// Create a conversation with Nira
+const conversation = await nb.nira.createConversation('My Chat');
 
 // Stream the response in real-time
-for await (const event of nb.messages.stream(agents[0].id, conversation.id, 'Hello!')) {
-  if (event.type === 'content') {
-    process.stdout.write(event.data.text as string);
+for await (const event of nb.nira.stream(conversation.id, 'Hello!')) {
+  if (event.type === 'message.content') {
+    process.stdout.write(event.data.content as string);
+  } else if (event.type === 'message.done') {
+    console.log('\nDone!');
   }
 }
 ```
@@ -61,27 +59,29 @@ const nb = new NimbleBrain({
 
 ## Streaming Messages
 
-The SDK provides real-time streaming for agent responses via Server-Sent Events (SSE):
+The SDK provides real-time streaming for Nira responses via Server-Sent Events (SSE):
 
 ```typescript
-const conversation = await nb.conversations.create(agentId);
+const conversation = await nb.nira.createConversation('My Chat');
 
-for await (const event of nb.messages.stream(agentId, conversation.id, 'Tell me a joke')) {
+for await (const event of nb.nira.stream(conversation.id, 'Tell me a joke')) {
   switch (event.type) {
-    case 'message.start':
-      console.log('Agent is responding...');
+    case 'message.meta':
+      console.log('Message ID:', event.data.messageId);
       break;
-    case 'content':
+    case 'message.content':
       // Text chunk - display with typewriter effect
-      process.stdout.write(event.data.text as string);
+      process.stdout.write(event.data.content as string);
       break;
-    case 'tool.start':
-      console.log(`Using tool: ${event.data.display}`);
+    case 'message.tool':
+      // Tool execution status
+      console.log(`Tool: ${event.data.toolName} - ${event.data.status}`);
       break;
-    case 'tool.complete':
-      console.log('Tool completed');
+    case 'message.actionCards':
+      // Action cards (e.g., OAuth prompts)
+      console.log('Action cards:', event.data.actionCards);
       break;
-    case 'done':
+    case 'message.done':
       console.log('\nResponse complete!');
       break;
     case 'error':
@@ -93,34 +93,26 @@ for await (const event of nb.messages.stream(agentId, conversation.id, 'Tell me 
 
 ## API Reference
 
-### Agents
-
-```typescript
-// List all agents
-const agents = await nb.agents.list();
-```
-
-### Conversations
+### Nira (Conversations)
 
 ```typescript
 // Create a new conversation
-const conversation = await nb.conversations.create(agentId, 'My Chat');
+const conversation = await nb.nira.createConversation('My Chat');
 
 // Get conversation details
-const conv = await nb.conversations.get(agentId, conversationId);
-```
+const conv = await nb.nira.getConversation(conversationId);
 
-### Messages
-
-```typescript
-// List messages in a conversation
-const messages = await nb.messages.list(agentId, conversationId);
+// List messages in a conversation (paginated)
+const { messages, total } = await nb.nira.listMessages(conversationId, {
+  limit: 50,
+  offset: 0,
+});
 
 // Send a message (non-streaming, blocks until complete)
-const response = await nb.messages.send(agentId, conversationId, 'Hello!');
+const response = await nb.nira.sendMessage(conversationId, 'Hello!');
 
 // Send with streaming (recommended for UI)
-for await (const event of nb.messages.stream(agentId, conversationId, 'Hello!')) {
+for await (const event of nb.nira.stream(conversationId, 'Hello!')) {
   // Handle streaming events
 }
 ```
@@ -149,7 +141,7 @@ const result = await nb.executions.waitForCompletion(id, {
 For advanced use cases, you can use the auto-generated OpenAPI functions directly:
 
 ```typescript
-import { getV1Agents, postV1AgentsByAgentIdConversations } from '@nimblebrain/sdk';
+import { postV1NiraConversations, getV1NiraConversationsById } from '@nimblebrain/sdk';
 import { createClient, createConfig } from '@nimblebrain/sdk/client';
 
 const client = createClient(createConfig({
@@ -157,14 +149,17 @@ const client = createClient(createConfig({
   headers: { Authorization: 'Bearer nb_live_...' },
 }));
 
-const { data, error } = await getV1Agents({ client });
+const { data, error } = await postV1NiraConversations({
+  client,
+  body: { title: 'My Chat' },
+});
 ```
 
 ## Error Handling
 
 ```typescript
 try {
-  const agents = await nb.agents.list();
+  const conversation = await nb.nira.createConversation('My Chat');
 } catch (error) {
   if (error instanceof Error) {
     console.error('API error:', error.message);

@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetV1AgentsByAgentIdConversationsByConversationIdData, GetV1AgentsByAgentIdConversationsByConversationIdMessagesData, GetV1AgentsByAgentIdConversationsByConversationIdMessagesResponses, GetV1AgentsByAgentIdConversationsByConversationIdResponses, GetV1AgentsData, GetV1AgentsErrors, GetV1AgentsResponses, GetV1ExecutionsByIdData, GetV1ExecutionsByIdResponses, GetV1PlaybooksData, GetV1PlaybooksResponses, PostV1AgentsByAgentIdConversationsByConversationIdMessagesData, PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponses, PostV1AgentsByAgentIdConversationsData, PostV1AgentsByAgentIdConversationsResponses, PostV1PlaybooksByPlaybookIdExecuteData, PostV1PlaybooksByPlaybookIdExecuteResponses } from './types.gen';
+import type { GetV1ExecutionsByIdData, GetV1ExecutionsByIdResponses, GetV1MeData, GetV1MeErrors, GetV1MeResponses, GetV1NiraConversationsByIdData, GetV1NiraConversationsByIdMessagesData, GetV1NiraConversationsByIdMessagesResponses, GetV1NiraConversationsByIdResponses, GetV1PlaybooksData, GetV1PlaybooksResponses, GetV1WorkspacesData, GetV1WorkspacesErrors, GetV1WorkspacesResponses, PostV1NiraConversationsByIdMessagesData, PostV1NiraConversationsByIdMessagesResponses, PostV1NiraConversationsData, PostV1NiraConversationsResponses, PostV1PlaybooksByPlaybookIdExecuteData, PostV1PlaybooksByPlaybookIdExecuteResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -19,13 +19,24 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
- * List agents
+ * Get current user
  *
- * Get a list of all agents available in your workspace
+ * Returns the authenticated user profile, organization, and available workspaces. Requires Clerk JWT authentication (not API key).
  */
-export const getV1Agents = <ThrowOnError extends boolean = false>(options?: Options<GetV1AgentsData, ThrowOnError>) => (options?.client ?? client).get<GetV1AgentsResponses, GetV1AgentsErrors, ThrowOnError>({
+export const getV1Me = <ThrowOnError extends boolean = false>(options?: Options<GetV1MeData, ThrowOnError>) => (options?.client ?? client).get<GetV1MeResponses, GetV1MeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/agents',
+    url: '/v1/me',
+    ...options
+});
+
+/**
+ * List workspaces
+ *
+ * Returns workspaces accessible to the authenticated user. Requires Clerk JWT authentication (not API key).
+ */
+export const getV1Workspaces = <ThrowOnError extends boolean = false>(options?: Options<GetV1WorkspacesData, ThrowOnError>) => (options?.client ?? client).get<GetV1WorkspacesResponses, GetV1WorkspacesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/workspaces',
     ...options
 });
 
@@ -38,72 +49,6 @@ export const getV1Playbooks = <ThrowOnError extends boolean = false>(options?: O
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/playbooks',
     ...options
-});
-
-/**
- * Create conversation with agent
- *
- * Start a new conversation with a specific agent
- */
-export const postV1AgentsByAgentIdConversations = <ThrowOnError extends boolean = false>(options: Options<PostV1AgentsByAgentIdConversationsData, ThrowOnError>) => (options.client ?? client).post<PostV1AgentsByAgentIdConversationsResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/agents/{agentId}/conversations',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Get conversation
- *
- * Get details of a specific conversation with an agent
- */
-export const getV1AgentsByAgentIdConversationsByConversationId = <ThrowOnError extends boolean = false>(options: Options<GetV1AgentsByAgentIdConversationsByConversationIdData, ThrowOnError>) => (options.client ?? client).get<GetV1AgentsByAgentIdConversationsByConversationIdResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/agents/{agentId}/conversations/{conversationId}',
-    ...options
-});
-
-/**
- * List messages
- *
- * Get messages in a conversation with an agent
- */
-export const getV1AgentsByAgentIdConversationsByConversationIdMessages = <ThrowOnError extends boolean = false>(options: Options<GetV1AgentsByAgentIdConversationsByConversationIdMessagesData, ThrowOnError>) => (options.client ?? client).get<GetV1AgentsByAgentIdConversationsByConversationIdMessagesResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/agents/{agentId}/conversations/{conversationId}/messages',
-    ...options
-});
-
-/**
- * Send message
- *
- * Send a message to a conversation with an agent.
- *
- * **Response Modes:**
- * - **Streaming** (Accept: text/event-stream OR stream: true): Returns SSE stream with real-time events
- * - **Synchronous** (default): Blocks until response complete, returns full message
- * - **Async** (async: true): Returns immediately with executionId, poll /v1/executions/:id for result
- *
- * **SSE Events (streaming mode):**
- * - `message.start` - Agent started responding
- * - `content` - Content chunk (text field)
- * - `tool.start` - Tool execution started
- * - `tool.complete` - Tool execution finished
- * - `message.complete` - Full message with content
- * - `error` - Error occurred
- * - `done` - Stream complete
- */
-export const postV1AgentsByAgentIdConversationsByConversationIdMessages = <ThrowOnError extends boolean = false>(options: Options<PostV1AgentsByAgentIdConversationsByConversationIdMessagesData, ThrowOnError>) => (options.client ?? client).post<PostV1AgentsByAgentIdConversationsByConversationIdMessagesResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/v1/agents/{agentId}/conversations/{conversationId}/messages',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
 });
 
 /**
@@ -130,4 +75,56 @@ export const getV1ExecutionsById = <ThrowOnError extends boolean = false>(option
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/v1/executions/{id}',
     ...options
+});
+
+/**
+ * Create conversation
+ *
+ * Create a new conversation with Nira. Optionally provide context for personalization.
+ */
+export const postV1NiraConversations = <ThrowOnError extends boolean = false>(options?: Options<PostV1NiraConversationsData, ThrowOnError>) => (options?.client ?? client).post<PostV1NiraConversationsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/nira/conversations',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
+ * Get conversation
+ *
+ * Get details of a specific conversation
+ */
+export const getV1NiraConversationsById = <ThrowOnError extends boolean = false>(options: Options<GetV1NiraConversationsByIdData, ThrowOnError>) => (options.client ?? client).get<GetV1NiraConversationsByIdResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/nira/conversations/{id}',
+    ...options
+});
+
+/**
+ * List messages
+ *
+ * Get messages in a conversation with pagination
+ */
+export const getV1NiraConversationsByIdMessages = <ThrowOnError extends boolean = false>(options: Options<GetV1NiraConversationsByIdMessagesData, ThrowOnError>) => (options.client ?? client).get<GetV1NiraConversationsByIdMessagesResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/nira/conversations/{id}/messages',
+    ...options
+});
+
+/**
+ * Send message
+ *
+ * Send a message to Nira. Response is streamed via Server-Sent Events (SSE).
+ */
+export const postV1NiraConversationsByIdMessages = <ThrowOnError extends boolean = false>(options: Options<PostV1NiraConversationsByIdMessagesData, ThrowOnError>) => (options.client ?? client).sse.post<PostV1NiraConversationsByIdMessagesResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/v1/nira/conversations/{id}/messages',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
